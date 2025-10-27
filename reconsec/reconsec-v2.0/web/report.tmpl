@@ -1,0 +1,52 @@
+<!doctype html><html><head>
+<meta charset="utf-8"/>
+<title>reconsec report</title>
+<style>
+ body{font-family:system-ui,Segoe UI,Arial,sans-serif;margin:24px;background:#0b0f14;color:#e6edf3}
+ h1,h2{margin:0 0 8px} .card{background:#0f1720;border:1px solid #1f2a37;border-radius:10px;padding:16px;margin:12px 0}
+ code,pre{background:#0b1220;border:1px solid #1b2430;border-radius:8px;padding:8px;display:block;white-space:pre-wrap}
+ .tag{display:inline-block;background:#162030;border:1px solid #2a3a4d;border-radius:12px;padding:2px 8px;margin:2px;font-size:12px}
+ .sev-HIGH{color:#ff7b72}.sev-MEDIUM{color:#d29922}.sev-LOW{color:#3fb950}
+ a{color:#79c0ff}
+ table{width:100%;border-collapse:collapse} th,td{border-bottom:1px solid #223042;padding:8px;text-align:left}
+</style></head><body>
+<h1>Reconsec Report</h1>
+<div class="card">
+  <div><strong>Target:</strong> {{.Target}}</div>
+  <div><strong>Generated at:</strong> {{.GeneratedAt}}</div>
+</div>
+
+<div class="card">
+  <h2>Summary</h2>
+  <div><span class="tag">HIGH: {{.Summary.High}}</span>
+       <span class="tag">MEDIUM: {{.Summary.Medium}}</span>
+       <span class="tag">LOW: {{.Summary.Low}}</span></div>
+</div>
+
+<div class="card">
+  <h2>Recon</h2>
+  <h3>Headers</h3>
+  <table><tr><th>Name</th><th>Value</th></tr>
+  {{range $k, $v := .Recon.Headers}}<tr><td>{{$k}}</td><td>{{$v}}</td></tr>{{end}}
+  </table>
+  <h3>URLs</h3>
+  {{range .Recon.URLs}}<div><a href="{{.}}" target="_blank" rel="noopener noreferrer">{{.}}</a></div>{{end}}
+  <h3>JS URLs</h3>
+  {{range .Recon.JSURLs}}<div><code>{{.}}</code></div>{{end}}
+  <h3>Forms</h3>
+  {{range .Recon.Forms}}<div><code>{{.}}</code></div>{{end}}
+</div>
+
+<div class="card">
+  <h2>Findings</h2>
+  <table>
+    <tr><th>Type</th><th>CWE</th><th>Severity</th><th>File/URL</th><th>Notes</th></tr>
+    {{range .Findings}}<tr>
+      <td>{{.Type}}</td><td>{{.CWE}}</td>
+      <td class="sev-{{.Severity}}">{{.Severity}}</td>
+      <td>{{if .File}}{{.File}}:{{.Line}}{{else}}{{.URL}}{{end}}</td>
+      <td>{{.Notes}}</td>
+    </tr>{{end}}
+  </table>
+</div>
+</body></html>
