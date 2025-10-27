@@ -1,0 +1,14 @@
+[
+  {
+    "name": "marker-1",
+    "category": "marker",
+    "template": "{{INJECT}}",
+    "notes": "inert marker - safe"
+  },
+  {
+    "name": "html-marker",
+    "category": "xss",
+    "template": "<div>{{INJECT}}</div>",
+    "notes": "inert html marker"
+  }
+]

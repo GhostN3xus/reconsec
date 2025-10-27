@@ -1,0 +1,47 @@
+[
+  {
+    "id": "JS-001",
+    "language": "js",
+    "description": "Uso de eval() \u2014 poss\u00edvel RCE.",
+    "pattern": "\\beval\\s*\\(",
+    "severity": "HIGH",
+    "cwe": "CWE-95",
+    "example": "eval(userInput)"
+  },
+  {
+    "id": "JS-002",
+    "language": "js",
+    "description": "child_process.exec/execSync/spawn \u2014 execu\u00e7\u00e3o de comandos.",
+    "pattern": "child_process\\.(exec|execSync|spawn)\\s*\\(",
+    "severity": "HIGH",
+    "cwe": "CWE-78",
+    "example": "child_process.exec(cmd)"
+  },
+  {
+    "id": "PY-001",
+    "language": "python",
+    "description": "eval/exec no Python.",
+    "pattern": "\\b(eval|exec)\\s*\\(",
+    "severity": "HIGH",
+    "cwe": "CWE-95",
+    "example": "eval(input)"
+  },
+  {
+    "id": "PHP-001",
+    "language": "php",
+    "description": "include/require com entrada externa \u2014 potencial LFI/RCE.",
+    "pattern": "\\b(include|require)(_once)?\\s*\\(",
+    "severity": "HIGH",
+    "cwe": "CWE-98",
+    "example": "include($_GET['page'])"
+  },
+  {
+    "id": "ALL-001",
+    "language": "all",
+    "description": "Credenciais hardcoded.",
+    "pattern": "(password\\s*[:=]\\s*['\\\"][A-Za-z0-9\\-_]{8,}['\\\"])",
+    "severity": "HIGH",
+    "cwe": "CWE-200",
+    "example": "password = \"secret123\""
+  }
+]
