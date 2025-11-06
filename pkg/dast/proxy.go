@@ -1,6 +1,7 @@
 package dast
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -9,6 +10,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/ghostn3xus/reconsec/pkg/report"
 )
 
 type Proxy struct {
@@ -48,7 +51,7 @@ func (p *Proxy) handleHTTP(w http.ResponseWriter, req *http.Request) {
 		p.handleTunneling(w, req)
 		return
 	}
-	p.logRequest(req)
+	p.logRequest(req) // Manter o registro para depuração
 	transport := http.DefaultTransport
 	resp, err := transport.RoundTrip(req)
 	if err != nil {
@@ -57,12 +60,60 @@ func (p *Proxy) handleHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	defer resp.Body.Close()
-	p.logResponse(resp)
+
+	// Analisar a resposta e registrar os achados
+	p.analyzeAndReport(resp)
+
+	p.logResponse(resp) // Manter o registro para depuração
 	copyHeader(w.Header(), resp.Header)
 	w.WriteHeader(resp.StatusCode)
 	if _, err := io.Copy(w, io.LimitReader(resp.Body, p.MaxBody)); err != nil {
 		p.logger.Printf("body copy error: %v", err)
 	}
+}
+
+func (p *Proxy) analyzeAndReport(resp *http.Response) {
+	findings := p.analyzeHeaders(resp)
+	if len(findings) > 0 {
+		p.logger.Println("=== DAST Findings ===")
+		enc := json.NewEncoder(p.logger.Writer())
+		enc.SetIndent("", "  ")
+		for _, f := range findings {
+			_ = enc.Encode(f)
+		}
+		p.logger.Println("===================")
+	}
+}
+
+func (p *Proxy) analyzeHeaders(resp *http.Response) []report.Finding {
+	var findings []report.Finding
+
+	// Verificações de cabeçalhos de segurança ausentes
+	missingHeaders := []struct {
+		Name     string
+		Severity report.Severity
+		CWE      string
+	}{
+		{"Content-Security-Policy", report.SeverityMedium, "CWE-693"},
+		{"Strict-Transport-Security", report.SeverityMedium, "CWE-319"},
+		{"X-Content-Type-Options", report.SeverityLow, "CWE-693"},
+		{"X-Frame-Options", report.SeverityLow, "CWE-1021"},
+	}
+
+	for _, h := range missingHeaders {
+		if resp.Header.Get(h.Name) == "" {
+			findings = append(findings, report.Finding{
+				Type:       "MissingSecurityHeader",
+				Severity:   h.Severity,
+				Confidence: report.ConfidenceHigh,
+				URL:        resp.Request.URL.String(),
+				Notes:      fmt.Sprintf("Missing security header: %s", h.Name),
+				CWE:        h.CWE,
+			})
+		}
+	}
+
+	return findings
 }
 
 func (p *Proxy) handleTunneling(w http.ResponseWriter, req *http.Request) {

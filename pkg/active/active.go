@@ -13,6 +13,8 @@ import (
 	"github.com/ghostn3xus/reconsec/pkg/report"
 )
 
+const successIndicator = "VULNERABLE"
+
 type ActiveOptions struct {
 	URL             string
 	PayloadsPath    string
@@ -87,8 +89,11 @@ func RunActiveScan(opts ActiveOptions) ([]report.Finding, error) {
 
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		cmd := exec.CommandContext(ctx, "bash", "scripts/run_payload_in_sandbox.sh", opts.URL, payload)
-		err := cmd.Run()
+
+		output, err := cmd.CombinedOutput()
 		cancel()
+
+		outputStr := string(output)
 
 		if err != nil {
 			note := err.Error()
@@ -107,13 +112,24 @@ func RunActiveScan(opts ActiveOptions) ([]report.Finding, error) {
 			continue
 		}
 
-		findings = append(findings, report.Finding{
-			Type:       "ActiveAttempt",
-			Severity:   report.SeverityLow,
-			Confidence: report.ConfidenceLow,
-			URL:        opts.URL,
-			Notes:      "Executed payload in sandbox: " + p.Name,
-		})
+		if strings.Contains(outputStr, successIndicator) {
+			findings = append(findings, report.Finding{
+				Type:       "VulnerabilityFound",
+				Severity:   report.SeverityHigh,
+				Confidence: report.ConfidenceHigh,
+				URL:        opts.URL,
+				Notes:      fmt.Sprintf("Payload '%s' triggered a success indicator.", p.Name),
+				Snippet:    outputStr,
+			})
+		} else {
+			findings = append(findings, report.Finding{
+				Type:       "ActiveAttempt",
+				Severity:   report.SeverityLow,
+				Confidence: report.ConfidenceLow,
+				URL:        opts.URL,
+				Notes:      "Executed payload in sandbox: " + p.Name,
+			})
+		}
 
 		if sleepInterval > 0 {
 			time.Sleep(sleepInterval)
