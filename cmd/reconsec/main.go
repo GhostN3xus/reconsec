@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/ghostn3xus/reconsec/pkg/active"
@@ -33,8 +34,6 @@ func init() {
 	rootCmd.AddCommand(reconCmd)
 
 	// dirscan
-	dirscanCmd.Flags().String("wordlist", "", "Path to a custom wordlist file for directory scanning")
-	dirscanCmd.Flags().Int("threads", 10, "Number of threads to use for directory scanning")
 	rootCmd.AddCommand(dirscanCmd)
 
 	// activescan
@@ -88,25 +87,23 @@ var reconCmd = &cobra.Command{
 
 var dirscanCmd = &cobra.Command{
 	Use:   "dirscan [url]",
-	Short: "Scan a web server for accessible directories and files",
+	Short: "Run a deep, recursive directory scan using the dirsearch engine",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		baseURL := args[0]
-		wordlistPath, _ := cmd.Flags().GetString("wordlist")
-		threads, _ := cmd.Flags().GetInt("threads")
 
-		wordlist := loadWordlist(wordlistPath, discovery.DefaultDirWordlist)
-		opts := discovery.DirScanOptions{
-			BaseURL:  baseURL,
-			Wordlist: wordlist,
-			Threads:  threads,
+		output, err := discovery.RunDirScan(baseURL)
+		if err != nil {
+			// Se o erro for a dependência faltando, encerra com uma mensagem clara.
+			if strings.Contains(err.Error(), "dependência 'dirsearch' não encontrada") {
+				log.Fatal(err)
+			}
+			fmt.Fprintf(os.Stderr, "Dirscan encontrou um erro: %v\n", err)
 		}
 
-		results := discovery.RunDirScan(opts)
-		fmt.Println("Found paths:")
-		for _, r := range results {
-			fmt.Printf("[%d] %s\n", r.StatusCode, r.URL)
-		}
+		fmt.Println("--- Dirsearch Report ---")
+		fmt.Println(output)
+		fmt.Println("----------------------")
 	},
 }
 

@@ -1,6 +1,6 @@
 # ReconSec
 
-ReconSec é uma ferramenta de linha de comando robusta, escrita em Go, focada em **reconhecimento e análise dinâmica** de aplicações web. Inspirada em ferramentas como `amass`, `subfinder` e `dirsearch`, a ReconSec foi projetada para ser rápida, eficiente e facilmente integrável em pipelines de segurança.
+ReconSec é uma ferramenta de linha de comando de nível profissional, escrita em Go, focada em **reconhecimento profundo e análise dinâmica** de aplicações web. Inspirada em ferramentas como `amass`, `subfinder` e `dirsearch`, a ReconSec utiliza técnicas avançadas para fornecer resultados abrangentes e precisos.
 
 ## Sumário
 - [Principais funcionalidades](#principais-funcionalidades)
@@ -17,14 +17,19 @@ ReconSec é uma ferramenta de linha de comando robusta, escrita em Go, focada em
 - [Estrutura do projeto](#estrutura-do-projeto)
 
 ## Principais funcionalidades
-- **Enumeração de Subdomínios**: Descubra subdomínios de um alvo usando listas de palavras e resolução de DNS concorrente.
-- **Varredura de Diretórios**: Identifique diretórios e arquivos acessíveis em um servidor web, similar ao `dirsearch`.
+- **Enumeração Avançada de Subdomínios**: Descubra subdomínios usando um método de duas fases que combina enumeração por lista de palavras com **geração de permutações**, aumentando significativamente a cobertura.
+- **Varredura Profunda de Diretórios**: Utiliza o poder do motor **dirsearch**, o padrão da indústria, para realizar varreduras recursivas e profundas em servidores web.
 - **Varredura Ativa Flexível**: Execute payloads de segurança a partir de um diretório de arquivos JSON, permitindo uma fácil organização e expansão.
 - **Análise de Reflexão Inteligente**: Teste a reflexão de parâmetros com análise sensível ao contexto para identificar vulnerabilidades de XSS com maior precisão e menos falsos positivos.
 - **Proxy de Análise Passiva**: Intercepte o tráfego HTTP para análise passiva, como a detecção de cabeçalhos de segurança ausentes.
 
 ## Instalação
-1. **Pré-requisitos**: Go 1.21 ou superior.
+1. **Pré-requisitos**:
+   - Go 1.21 ou superior.
+   - **dirsearch**: O comando `dirscan` requer que o `dirsearch` esteja instalado e no seu `PATH`. Instale-o com:
+     ```bash
+     pip3 install dirsearch
+     ```
 2. **Clone o repositório**:
    ```bash
    git clone https://github.com/ghostn3xus/reconsec.git
@@ -40,28 +45,26 @@ ReconSec é uma ferramenta de linha de comando robusta, escrita em Go, focada em
 # Exibir a ajuda geral
 go run ./cmd/reconsec --help
 
-# Enumerar subdomínios de um alvo
+# Executar uma enumeração de subdomínios de duas fases
 go run ./cmd/reconsec recon example.com
 
-# Varredura de diretórios em um alvo
+# Executar uma varredura de diretórios profunda com o motor dirsearch
 go run ./cmd/reconsec dirscan http://example.com
 ```
 
 ## Comandos
 
 ### `recon`
-- **Função**: Enumera subdomínios para um domínio alvo.
+- **Função**: Executa uma enumeração de subdomínios de duas fases (lista de palavras + permutações).
 - **Uso**: `reconsec recon [domain]`
 - **Flags**:
-  - `--wordlist <path>`: Caminho para uma lista de palavras customizada.
+  - `--wordlist <path>`: Caminho para uma lista de palavras customizada para a primeira fase.
   - `--threads <int>`: Número de threads a serem usadas (padrão: 10).
 
 ### `dirscan`
-- **Função**: Varre um servidor web em busca de diretórios e arquivos.
+- **Função**: Executa uma varredura profunda e recursiva usando o motor do `dirsearch`.
 - **Uso**: `reconsec dirscan [url]`
-- **Flags**:
-  - `--wordlist <path>`: Caminho para uma lista de palavras customizada.
-  - `--threads <int>`: Número de threads a serem usadas (padrão: 10).
+- **Nota**: Este comando requer que o `dirsearch` esteja instalado e acessível no `PATH` do sistema.
 
 ### `activescan`
 - **Função**: Executa uma varredura ativa usando um conjunto de payloads.
@@ -95,9 +98,9 @@ O comando `activescan` carrega todos os arquivos `.json` localizados no diretór
 cmd/reconsec/        # Ponto de entrada da CLI (Cobra)
 pkg/active           # Scanner ativo e carregamento de payloads
 pkg/dast             # Proxy de análise passiva
-pkg/discovery        # Varredura de diretórios e arquivos
+pkg/discovery        # Wrapper para o motor dirsearch
 pkg/poc              # Sonda de reflexão de parâmetros
-pkg/recon            # Enumeração de subdomínios
+pkg/recon            # Enumeração de subdomínios em duas fases
 pkg/report           # Tipos de relatório compartilhados
 scripts/             # Scripts de sandbox
 payloads/            # Diretório de payloads
