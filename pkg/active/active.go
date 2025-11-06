@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -16,12 +17,11 @@ import (
 const successIndicator = "VULNERABLE"
 
 type ActiveOptions struct {
-	URL             string
-	PayloadsPath    string
-	SandboxEnabled  bool
-	ConfirmAuthText string
-	TimeoutSec      int
-	Rate            int
+	URL            string
+	PayloadsPath   string
+	SandboxEnabled bool
+	TimeoutSec     int
+	Rate           int
 }
 
 type PayloadTemplate struct {
@@ -31,12 +31,57 @@ type PayloadTemplate struct {
 	Notes    string `json:"notes,omitempty"`
 }
 
+// LoadPayloads carrega templates de payload de um arquivo ou diretório.
 func LoadPayloads(path string) ([]PayloadTemplate, error) {
 	if strings.TrimSpace(path) == "" {
 		return nil, fmt.Errorf("payload path required")
 	}
 
-	f, err := os.ReadFile(path)
+	var allPayloads []PayloadTemplate
+
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, fmt.Errorf("could not access path %s: %w", path, err)
+	}
+
+	if info.IsDir() {
+		// Se for um diretório, carrega todos os arquivos .json
+		files, err := os.ReadDir(path)
+		if err != nil {
+			return nil, fmt.Errorf("could not read directory %s: %w", path, err)
+		}
+
+		for _, file := range files {
+			if !file.IsDir() && strings.HasSuffix(strings.ToLower(file.Name()), ".json") {
+				filePath := filepath.Join(path, file.Name())
+				payloads, err := loadPayloadsFromFile(filePath)
+				if err != nil {
+					// Loga o erro, mas continua com os outros arquivos
+					fmt.Fprintf(os.Stderr, "warning: could not load payload file %s: %v\n", filePath, err)
+					continue
+				}
+				allPayloads = append(allPayloads, payloads...)
+			}
+		}
+	} else {
+		// Se for um arquivo, carrega-o diretamente
+		payloads, err := loadPayloadsFromFile(path)
+		if err != nil {
+			return nil, err
+		}
+		allPayloads = append(allPayloads, payloads...)
+	}
+
+	if len(allPayloads) == 0 {
+		return nil, fmt.Errorf("no payload templates found in %s", path)
+	}
+
+	return allPayloads, nil
+}
+
+// loadPayloadsFromFile carrega payloads de um único arquivo JSON.
+func loadPayloadsFromFile(filePath string) ([]PayloadTemplate, error) {
+	f, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, err
 	}
@@ -46,12 +91,9 @@ func LoadPayloads(path string) ([]PayloadTemplate, error) {
 		return nil, err
 	}
 
-	if len(arr) == 0 {
-		return nil, fmt.Errorf("no payload templates found in %s", path)
-	}
-
 	return arr, nil
 }
+
 
 func RunActiveScan(opts ActiveOptions) ([]report.Finding, error) {
 	var findings []report.Finding
@@ -59,12 +101,8 @@ func RunActiveScan(opts ActiveOptions) ([]report.Finding, error) {
 		return findings, fmt.Errorf("target URL required")
 	}
 
-	if strings.TrimSpace(opts.ConfirmAuthText) == "" {
-		return findings, fmt.Errorf("explicit authorization required")
-	}
-
 	if !opts.SandboxEnabled {
-		return findings, fmt.Errorf("sandbox required")
+		return findings, fmt.Errorf("sandbox required to run active scans")
 	}
 
 	if opts.TimeoutSec <= 0 {
