@@ -6,7 +6,6 @@ import (
 	"net/url"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/ghostn3xus/reconsec/pkg/ml"
 	"github.com/ghostn3xus/reconsec/pkg/report"
@@ -31,6 +30,28 @@ func isCommonVulnParam(param string) bool {
 		}
 	}
 	return false
+}
+
+// analyzeReflectionContext analisa onde o token foi refletido e ajusta a severidade.
+func analyzeReflectionContext(body, token string, currentSeverity report.Severity) (string, report.Severity) {
+	if !strings.Contains(body, token) {
+		return "not reflected", currentSeverity
+	}
+
+	// Verifica a reflexão em um contexto de script (XSS de alto impacto)
+	if strings.Contains(body, "<script>") && strings.Contains(body, "</script>") {
+		scriptContent := body[strings.Index(body, "<script>")+8 : strings.Index(body, "</script>")]
+		if strings.Contains(scriptContent, token) {
+			return "reflected in script tag", report.SeverityHigh
+		}
+	}
+
+	// Verifica a reflexão em um atributo HTML
+	if strings.Contains(body, fmt.Sprintf(`="%s"`, token)) || strings.Contains(body, fmt.Sprintf(`='%s'`, token)) {
+		return "reflected in HTML attribute", report.SeverityMedium
+	}
+
+	return "reflected in body", report.SeverityLow
 }
 
 func SafeProbe(opt PoCOptions) (report.Finding, error) {
@@ -72,14 +93,18 @@ func SafeProbe(opt PoCOptions) (report.Finding, error) {
 	}
 	bodyStr := string(body)
 	respLen := len(body)
-	reflected := strings.Contains(bodyStr, opt.Token)
-	lenUtf8 := utf8.RuneCountInString(bodyStr)
+
+	// Determina a severidade inicial com base no código de status
 	sev := report.SeverityLow
 	if resp.StatusCode >= 500 {
 		sev = report.SeverityHigh
 	} else if resp.StatusCode >= 400 {
 		sev = report.SeverityMedium
 	}
+
+	// Analisa o contexto da reflexão para ajustar a severidade
+	reflectionContext, sev := analyzeReflectionContext(bodyStr, opt.Token, sev)
+	reflected := reflectionContext != "not reflected"
 
 	// Integração com ML
 	model, _ := ml.LoadModel("") // Carrega o modelo padrão
@@ -93,8 +118,8 @@ func SafeProbe(opt PoCOptions) (report.Finding, error) {
 	}
 	interestScore := model.Score(features)
 
-	notes := fmt.Sprintf("Status=%d; len=%d; runes=%d; reflected=%v; interest_score=%.2f",
-		resp.StatusCode, respLen, lenUtf8, reflected, interestScore)
+	notes := fmt.Sprintf("Status=%d; len=%d; reflected=%s; interest_score=%.2f",
+		resp.StatusCode, respLen, reflectionContext, interestScore)
 
 	finding = report.Finding{
 		Type:       "SafeProbe",
@@ -104,9 +129,10 @@ func SafeProbe(opt PoCOptions) (report.Finding, error) {
 		Notes:      notes,
 		Time:       time.Now(),
 	}
+
 	if reflected {
 		finding.Confidence = report.ConfidenceHigh
-		finding.Notes = "Token reflected; " + finding.Notes
 	}
+
 	return finding, nil
 }
