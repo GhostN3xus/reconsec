@@ -36,6 +36,41 @@ func LoadRules(path string) ([]Rule, error) {
 	return rules, nil
 }
 
+func loadIgnorePatterns(root string) ([]string, error) {
+	var patterns []string
+	ignorePath := filepath.Join(root, ".reconsec-ignore")
+	if _, err := os.Stat(ignorePath); os.IsNotExist(err) {
+		return patterns, nil // Nenhum arquivo de ignore, não faz nada
+	}
+
+	file, err := os.Open(ignorePath)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line != "" && !strings.HasPrefix(line, "#") {
+			patterns = append(patterns, line)
+		}
+	}
+	return patterns, scanner.Err()
+}
+
+func isIgnored(path string, patterns []string) bool {
+	for _, p := range patterns {
+		if matched, _ := filepath.Match(p, filepath.Base(path)); matched {
+			return true
+		}
+		if matched, _ := filepath.Match(p, path); matched {
+			return true
+		}
+	}
+	return false
+}
+
 func ScanPathWithRules(root string, rules []Rule) ([]report.Finding, error) {
 	var findings []report.Finding
 
@@ -44,9 +79,22 @@ func ScanPathWithRules(root string, rules []Rule) ([]report.Finding, error) {
 		return findings, err
 	}
 
+	ignorePatterns, err := loadIgnorePatterns(root)
+	if err != nil {
+		return findings, fmt.Errorf("could not load ignore patterns: %w", err)
+	}
+
 	walkErr := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
+		}
+
+		// Ignorar diretórios e arquivos
+		if isIgnored(path, ignorePatterns) {
+			if d.IsDir() {
+				return filepath.SkipDir // Pula o diretório inteiro
+			}
+			return nil // Pula o arquivo
 		}
 
 		if d.IsDir() {
@@ -61,8 +109,9 @@ func ScanPathWithRules(root string, rules []Rule) ([]report.Finding, error) {
 
 		f, err := os.Open(path)
 		if err != nil {
-			return nil
+			return nil // Pode ser um erro de permissão, continua para o próximo
 		}
+		defer f.Close()
 
 		scanner := bufio.NewScanner(f)
 		lineNo := 0
@@ -100,10 +149,9 @@ func ScanPathWithRules(root string, rules []Rule) ([]report.Finding, error) {
 			}
 		}
 
-		f.Close()
-
 		if err := scanner.Err(); err != nil {
-			return err
+			// Logar o erro, mas não parar a varredura inteira
+			fmt.Fprintf(os.Stderr, "error scanning file %s: %v\n", path, err)
 		}
 
 		return nil
@@ -115,6 +163,7 @@ func ScanPathWithRules(root string, rules []Rule) ([]report.Finding, error) {
 
 	return findings, nil
 }
+
 
 type compiledRule struct {
 	Rule

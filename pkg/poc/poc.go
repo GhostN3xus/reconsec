@@ -8,6 +8,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/ghostn3xus/reconsec/pkg/ml"
 	"github.com/ghostn3xus/reconsec/pkg/report"
 	"github.com/ghostn3xus/reconsec/pkg/utils"
 )
@@ -19,6 +20,17 @@ type PoCOptions struct {
 	Timeout  int
 	Only     string
 	MaxReads int64
+}
+
+// isCommonVulnParam verifica se um nome de parâmetro é comumente associado a vulnerabilidades.
+func isCommonVulnParam(param string) bool {
+	commonParams := []string{"page", "file", "redirect", "url", "debug", "id", "user", "name", "cmd"}
+	for _, p := range commonParams {
+		if strings.Contains(strings.ToLower(param), p) {
+			return true
+		}
+	}
+	return false
 }
 
 func SafeProbe(opt PoCOptions) (report.Finding, error) {
@@ -68,7 +80,22 @@ func SafeProbe(opt PoCOptions) (report.Finding, error) {
 	} else if resp.StatusCode >= 400 {
 		sev = report.SeverityMedium
 	}
-	notes := fmt.Sprintf("Status=%d; len=%d; runes=%d; reflected=%v", resp.StatusCode, respLen, lenUtf8, reflected)
+
+	// Integração com ML
+	model, _ := ml.LoadModel("") // Carrega o modelo padrão
+	features := map[string]float64{
+		"param_name_entropy": ml.CalculateEntropy(opt.Param),
+		"param_name_len":     float64(len(opt.Param)),
+		"is_common_name":     0,
+	}
+	if isCommonVulnParam(opt.Param) {
+		features["is_common_name"] = 1
+	}
+	interestScore := model.Score(features)
+
+	notes := fmt.Sprintf("Status=%d; len=%d; runes=%d; reflected=%v; interest_score=%.2f",
+		resp.StatusCode, respLen, lenUtf8, reflected, interestScore)
+
 	finding = report.Finding{
 		Type:       "SafeProbe",
 		Severity:   sev,
